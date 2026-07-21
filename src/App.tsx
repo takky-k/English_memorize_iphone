@@ -54,6 +54,8 @@ export default function App() {
   const isFinished = summary.total >= TEST_SIZE || currentIndex >= TEST_SIZE;
   const scoreLabel = `${summary.correct} / ${summary.total}`;
   const progressLabel = `${Math.min(currentIndex + 1, TEST_SIZE)} / ${TEST_SIZE}`;
+  const lifetimeAccuracyLabel =
+    stats && stats.attempts > 0 ? `${Math.round((stats.correct / stats.attempts) * 100)}%` : "0%";
 
   const accuracyLabel = useMemo(() => {
     if (summary.total === 0) {
@@ -198,6 +200,8 @@ export default function App() {
       </header>
 
       <section className="stats-grid" aria-label="学習状況">
+        <Stat label="累計回答" value={`${stats?.attempts ?? 0}`} />
+        <Stat label="累計正解率" value={lifetimeAccuracyLabel} />
         <Stat label="登録語句" value={`${stats?.total ?? 0}`} />
         <Stat label="覚えた判定" value={`${stats?.known ?? 0}`} />
         <Stat label="今回の正解" value={scoreLabel} />

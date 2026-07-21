@@ -86,6 +86,7 @@
 - GitHub ActionsによるPages自動デプロイ設定
 - Web app manifestとservice workerを追加
 - IndexedDBに語句マスター、累計成績、回答履歴を保存
+- トップ画面に累計回答数と累計正解率を表示
 - Web Speech APIで英語読み上げ
 - 10問終了後に英語・日本語・正解/不正解を必ず表示
 - 学習データのJSONバックアップ
