@@ -76,7 +76,8 @@ button:disabled {
 .app-header p,
 .source-panel p,
 .finish-heading p,
-.muted {
+.muted,
+.form-message {
   color: #64748b;
   font-size: 14px;
   line-height: 1.55;
@@ -108,7 +109,8 @@ button:disabled {
 .stat-card,
 .source-panel,
 .history-panel,
-.finish-panel {
+.finish-panel,
+.add-panel {
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -263,7 +265,8 @@ button:disabled {
 
 .finish-panel,
 .source-panel,
-.history-panel {
+.history-panel,
+.add-panel {
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -370,6 +373,67 @@ button:disabled {
   font-size: 13px;
   font-weight: 900;
   padding: 11px;
+}
+
+.add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.add-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.add-form label span {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.add-form input,
+.add-form textarea {
+  appearance: none;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #111827;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.45;
+  padding: 12px;
+  width: 100%;
+}
+
+.add-form textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.segmented-control {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+}
+
+.segmented-control button {
+  background: transparent;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 900;
+  padding: 10px;
+}
+
+.segmented-control button.selected {
+  background: #ffffff;
+  color: #0f766e;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
 
 .section-heading span {

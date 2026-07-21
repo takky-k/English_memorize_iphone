@@ -2,6 +2,7 @@ import { vocabularySeed } from "./data/vocabularySeed";
 import type {
   AnswerResult,
   AttemptRecord,
+  VocabularyItemType,
   VocabularyItem,
   VocabularyStats
 } from "./types";
@@ -15,6 +16,12 @@ type StoreName = "items" | "attempts" | "meta";
 type MetaRecord = {
   key: string;
   value: string;
+};
+type CustomVocabularyInput = {
+  term: string;
+  meaningJa: string;
+  definitionEn: string;
+  itemType: VocabularyItemType;
 };
 
 export async function initializeStore() {
@@ -95,6 +102,32 @@ export async function recordAnswer(
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
+}
+
+export async function addCustomVocabularyItem(db: IDBDatabase, input: CustomVocabularyInput) {
+  const now = Date.now();
+  const item: VocabularyItem = {
+    id: `custom-${now}-${Math.random().toString(36).slice(2)}`,
+    term: input.term.trim(),
+    meaningJa: input.meaningJa.trim(),
+    definitionEn: input.definitionEn.trim() || "自分で追加した語句",
+    pos: input.itemType === "phrase" ? "phrase" : "custom",
+    itemType: input.itemType,
+    source: "custom",
+    sourceRank: now,
+    totalAttempts: 0,
+    correctAttempts: 0,
+    incorrectAttempts: 0,
+    lastSeenAt: null
+  };
+
+  await new Promise<void>((resolve, reject) => {
+    const request = db.transaction("items", "readwrite").objectStore("items").add(item);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+  });
+
+  return item;
 }
 
 export async function getRecentAttempts(db: IDBDatabase, limit = 10) {

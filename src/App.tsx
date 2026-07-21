@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  addCustomVocabularyItem,
   createTestSession,
   exportStudyData,
   getRecentAttempts,
@@ -13,6 +14,7 @@ import type {
   AnswerResult,
   AttemptRecord,
   TestSummary,
+  VocabularyItemType,
   VocabularyItem,
   VocabularyStats
 } from "./types";
@@ -37,6 +39,11 @@ export default function App() {
   const [isAnswerVisible, setIsAnswerVisible] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [answeredItems, setAnsweredItems] = useState<AnsweredItem[]>([]);
+  const [newTerm, setNewTerm] = useState("");
+  const [newMeaning, setNewMeaning] = useState("");
+  const [newDefinition, setNewDefinition] = useState("");
+  const [newItemType, setNewItemType] = useState<VocabularyItemType>("word");
+  const [addMessage, setAddMessage] = useState("");
   const [summary, setSummary] = useState<TestSummary>({ correct: 0, incorrect: 0, total: 0 });
   const [sessionId, setSessionId] = useState(createSessionId);
   const [isLoading, setIsLoading] = useState(true);
@@ -167,6 +174,35 @@ export default function App() {
     await resetStudyProgress(db);
     await refreshDashboard(db);
     await startNewSession(db);
+  }
+
+  async function addVocabulary(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!db) {
+      return;
+    }
+
+    const term = newTerm.trim();
+    const meaningJa = newMeaning.trim();
+
+    if (!term || !meaningJa) {
+      setAddMessage("英語と和訳は必須です。");
+      return;
+    }
+
+    await addCustomVocabularyItem(db, {
+      term,
+      meaningJa,
+      definitionEn: newDefinition,
+      itemType: newItemType
+    });
+    setNewTerm("");
+    setNewMeaning("");
+    setNewDefinition("");
+    setNewItemType("word");
+    setAddMessage(`「${term}」を追加しました。次回以降の10問に出ます。`);
+    await refreshDashboard(db);
   }
 
   if (isLoading && sessionItems.length === 0) {
@@ -304,6 +340,64 @@ export default function App() {
             履歴リセット
           </button>
         </div>
+      </section>
+
+      <section className="add-panel" aria-label="単語やフレーズを追加">
+        <div className="section-heading">
+          <h2>語句を追加</h2>
+          <span>custom</span>
+        </div>
+        <form className="add-form" onSubmit={(event) => void addVocabulary(event)}>
+          <label>
+            <span>英単語・熟語</span>
+            <input
+              autoCapitalize="none"
+              autoCorrect="off"
+              placeholder="例: take over"
+              type="text"
+              value={newTerm}
+              onChange={(event) => setNewTerm(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>和訳</span>
+            <input
+              placeholder="例: 引き継ぐ、支配する"
+              type="text"
+              value={newMeaning}
+              onChange={(event) => setNewMeaning(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>英語説明・メモ（任意）</span>
+            <textarea
+              placeholder="例: to begin controlling or being responsible for something"
+              rows={3}
+              value={newDefinition}
+              onChange={(event) => setNewDefinition(event.target.value)}
+            />
+          </label>
+          <div className="segmented-control" role="group" aria-label="語句の種類">
+            <button
+              className={newItemType === "word" ? "selected" : ""}
+              type="button"
+              onClick={() => setNewItemType("word")}
+            >
+              英単語
+            </button>
+            <button
+              className={newItemType === "phrase" ? "selected" : ""}
+              type="button"
+              onClick={() => setNewItemType("phrase")}
+            >
+              熟語
+            </button>
+          </div>
+          <button className="primary-button" type="submit">
+            追加する
+          </button>
+          {addMessage ? <p className="form-message">{addMessage}</p> : null}
+        </form>
       </section>
 
       <section className="history-panel" aria-label="直近の回答">
