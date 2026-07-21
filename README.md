@@ -49,6 +49,22 @@ pnpm run start
 
 表示されたQRコードをスマホのExpo Goで読み取ると、実機で確認できます。
 
+## スマホだけで動かす
+
+PCが手元にない時はGitHub Codespacesを使います。
+
+1. スマホのブラウザでGitHubリポジトリを開く
+2. `Code` → `Codespaces` → `Create codespace on main`
+3. ターミナルが開いたら以下を実行
+
+```bash
+pnpm run start:tunnel
+```
+
+4. 表示された `exp://...` のURLをコピーしてExpo Goで開く
+
+QRコードを同じスマホで読み取れない時は、Expo GoのURL入力、またはブラウザで `exp://...` リンクを開いてください。Tunnel接続なのでPCと同じWi-Fiにいる必要はありません。
+
 ## Git初期化
 
 Gitをインストールしたあと、以下を実行してください。
