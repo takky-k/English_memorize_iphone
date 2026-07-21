@@ -12,8 +12,11 @@
       "**/*"
     ],
     "ios": {
+      "bundleIdentifier": "com.takkyk.englishmemorizeiphone",
       "supportsTablet": true
     },
-    "android": {}
+    "android": {
+      "package": "com.takkyk.englishmemorizeiphone"
+    }
   }
 }

@@ -65,6 +65,33 @@ pnpm run start:tunnel
 
 QRコードを同じスマホで読み取れない時は、Expo GoのURL入力、またはブラウザで `exp://...` リンクを開いてください。Tunnel接続なのでPCと同じWi-Fiにいる必要はありません。
 
+## いつでもiPhoneで使えるようにする
+
+Expo GoやCodespacesは開発確認用です。PCやCodespacesを止めても使えるようにするには、TestFlightまたはApp Store向けのiOSアプリとしてビルドします。
+
+必要なもの:
+
+- Expo account
+- Apple Developer Program account
+
+TestFlightへ出す場合:
+
+```bash
+npx testflight
+```
+
+またはEAS BuildとSubmitを分ける場合:
+
+```bash
+npm install -g eas-cli
+eas login
+eas init
+pnpm run build:ios
+pnpm run submit:ios
+```
+
+TestFlightに入ったら、iPhoneのTestFlightアプリからインストールできます。その後はPCやCodespacesを起動しなくてもアプリを開けます。
+
 ## Git初期化
 
 Gitをインストールしたあと、以下を実行してください。
