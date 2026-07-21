@@ -4,9 +4,7 @@
   "postCreateCommand": "corepack enable && pnpm install",
   "customizations": {
     "vscode": {
-      "extensions": [
-        "expo.vscode-expo-tools"
-      ]
+      "extensions": []
     }
   },
   "forwardPorts": [

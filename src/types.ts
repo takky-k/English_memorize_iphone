@@ -20,8 +20,28 @@ export type VocabularyItem = VocabularySeedItem & {
 
 export type AnswerResult = "correct" | "incorrect";
 
+export type AttemptRecord = {
+  attemptId?: number;
+  itemId: string;
+  result: AnswerResult;
+  answeredAt: number;
+  sessionId: string;
+  term: string;
+  meaningJa: string;
+};
+
 export type TestSummary = {
   correct: number;
   incorrect: number;
   total: number;
+};
+
+export type VocabularyStats = {
+  total: number;
+  words: number;
+  phrases: number;
+  known: number;
+  attempts: number;
+  correct: number;
+  incorrect: number;
 };

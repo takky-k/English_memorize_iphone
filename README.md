@@ -1,6 +1,6 @@
-# 英単語記憶アプリ
+# 英単語メモリー
 
-スマホで英単語を覚えるためのReact Native / Expoアプリです。
+スマホで英単語・熟語を覚えるための個人用PWAです。
 
 ## できること
 
@@ -8,9 +8,11 @@
 - 英単語・熟語カードをタップして和訳を確認する
 - 音声ボタンで英単語・熟語を1回だけ読み上げる
 - 自分で「正解」「不正解」を判定する
-- 端末内SQLiteに回答履歴を保存する
+- スマホのブラウザ内IndexedDBに回答履歴を保存する
 - 不正解率が高い語句を次回以降に出やすくする
 - 学習済み数と残り数を確認する
+- 10問終了後に英語・日本語・正解/不正解の一覧を表示する
+- 学習データをJSONでバックアップする
 
 ## 出題ロジック
 
@@ -20,7 +22,7 @@
 - 不正解回数・不正解率が高い語句は出やすくする
 - 3回以上回答済みで不正解率が20%以下の語句は出題頻度を下げる
 - 1回のテストは必ず10問にする
-- 音声は `expo-speech` のText-to-Speechで英語として読み上げる
+- 音声はブラウザのWeb Speech APIで英語として読み上げる
 
 ## 収録データ
 
@@ -29,77 +31,80 @@
 
 NGSL 1.2公式サイトでは最新版が2809語として公開されています。現在のアプリには英日訳付きで扱えるNGSL 1.01を投入し、DB上ではsource/versionを分けて後から1.2差分を追加できるようにしています。
 
+## データの保存
+
+サーバーには正解/不正解履歴を保存しません。GitHub Pagesなどの無料ホスティングはPWA本体を配信するだけです。
+
+保存先:
+
+- 単語帳: 初回起動時にブラウザ内IndexedDBへ投入
+- 回答履歴: ブラウザ内IndexedDB
+- 10問ごとの結果: 画面表示と回答履歴に保存
+- バックアップ: アプリ内の「バックアップ」ボタンでJSONを書き出し
+
+同じiPhoneでもSafariとChromeでは別データになります。Safariでホーム画面に追加して使う場合は、そのSafari側の保存領域に残ります。
+
 ## 開発環境
 
-このリポジトリはExpoを使います。
+このリポジトリはReact + Viteで作っています。
 
 必要なもの:
 
 - Node.js 22.13.x以上
-- npm
+- pnpm
 - Git
-- Expo Goアプリ（スマホで確認する場合）
 
 ## セットアップ
 
 ```bash
 pnpm install
-pnpm run start
+pnpm run dev
 ```
 
-表示されたQRコードをスマホのExpo Goで読み取ると、実機で確認できます。
-
-## スマホだけで動かす
-
-PCが手元にない時はGitHub Codespacesを使います。
-
-1. スマホのブラウザでGitHubリポジトリを開く
-2. `Code` → `Codespaces` → `Create codespace on main`
-3. ターミナルが開いたら以下を実行
+## ビルド
 
 ```bash
-pnpm run start:tunnel
+pnpm run build
 ```
 
-4. 表示された `exp://...` のURLをコピーしてExpo Goで開く
+## 無料ホスティング
 
-QRコードを同じスマホで読み取れない時は、Expo GoのURL入力、またはブラウザで `exp://...` リンクを開いてください。Tunnel接続なのでPCと同じWi-Fiにいる必要はありません。
+### GitHub Pages
 
-## いつでもiPhoneで使えるようにする
+GitHub Pagesは無料で使えますが、GitHub Freeではpublic repositoryが対象です。Private repositoryからPagesを使うにはGitHub Pro/Team以上が必要です。
 
-Expo GoやCodespacesは開発確認用です。PCやCodespacesを止めても使えるようにするには、TestFlightまたはApp Store向けのiOSアプリとしてビルドします。
+このリポジトリにはGitHub ActionsのPagesデプロイ設定があります。
 
-必要なもの:
+1. GitHubのRepository Settingsを開く
+2. `Pages` を開く
+3. Sourceを `GitHub Actions` にする
+4. `main` にpushすると自動で公開されます
 
-- Expo account
-- Apple Developer Program account
+公開URLは通常この形です。
 
-TestFlightへ出す場合:
-
-```bash
-npx testflight
+```text
+https://takky-k.github.io/English_memorize_iphone/
 ```
 
-またはEAS BuildとSubmitを分ける場合:
+### Private repoのまま無料で公開したい場合
 
-```bash
-npm install -g eas-cli
-eas login
-eas init
-pnpm run build:ios
-pnpm run submit:ios
-```
+Vercel、Netlify、Cloudflare Pagesなどの無料枠を使うのが候補です。リポジトリはprivateのまま接続できますが、生成されたWebサイト自体はURLを知っていればアクセスできる公開サイトとして扱うのが安全です。
 
-TestFlightに入ったら、iPhoneのTestFlightアプリからインストールできます。その後はPCやCodespacesを起動しなくてもアプリを開けます。
+このPWAは個人データをブラウザ内にだけ保存するため、サイトURLを誰かが開いても、あなたの正解/不正解履歴は見えません。
+
+## iPhoneでホーム画面に追加
+
+1. Safariで公開URLを開く
+2. 共有ボタンを押す
+3. `ホーム画面に追加` を押す
+4. 追加されたアイコンから開く
 
 ## Git初期化
 
-Gitをインストールしたあと、以下を実行してください。
+このリポジトリはすでにGit管理されています。
 
 ```bash
-git init
-git add .
-git commit -m "Initial Expo vocabulary app"
+git status
 ```
 
 ## 要件・注文メモ
