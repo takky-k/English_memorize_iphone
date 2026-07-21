@@ -1,0 +1,27 @@
+export type VocabularyItemType = "word" | "phrase";
+
+export type VocabularySeedItem = {
+  id: string;
+  term: string;
+  meaningJa: string;
+  definitionEn: string;
+  pos: string;
+  itemType: VocabularyItemType;
+  source: string;
+  sourceRank: number;
+};
+
+export type VocabularyItem = VocabularySeedItem & {
+  totalAttempts: number;
+  correctAttempts: number;
+  incorrectAttempts: number;
+  lastSeenAt: number | null;
+};
+
+export type AnswerResult = "correct" | "incorrect";
+
+export type TestSummary = {
+  correct: number;
+  incorrect: number;
+  total: number;
+};
