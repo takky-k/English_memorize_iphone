@@ -9,7 +9,7 @@ import type {
 
 const DB_NAME = "english-memory-pwa";
 const DB_VERSION = 1;
-const SEED_VERSION = "2026-07-21-ngsl-1.01-phrasal-50";
+const SEED_VERSION = "2026-07-22-deduplicated-multiple-meanings";
 const TEST_SIZE = 10;
 
 type StoreName = "items" | "attempts" | "meta";
@@ -123,6 +123,26 @@ export async function recordAnswer(
 }
 
 export async function addCustomVocabularyItem(db: IDBDatabase, input: CustomVocabularyInput) {
+  const normalizedTerm = normalizeTerm(input.term);
+  const existing = (await getAllItems(db)).find(
+    (item) => normalizeTerm(item.term) === normalizedTerm
+  );
+
+  if (existing) {
+    const updatedItem: VocabularyItem = {
+      ...existing,
+      meaningJa: mergeMeanings([existing.meaningJa, input.meaningJa])
+    };
+
+    await new Promise<void>((resolve, reject) => {
+      const request = db.transaction("items", "readwrite").objectStore("items").put(updatedItem);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+    });
+
+    return { item: updatedItem, merged: true };
+  }
+
   const now = Date.now();
   const item: VocabularyItem = {
     id: `custom-${now}-${Math.random().toString(36).slice(2)}`,
@@ -147,7 +167,7 @@ export async function addCustomVocabularyItem(db: IDBDatabase, input: CustomVoca
     request.onsuccess = () => resolve();
   });
 
-  return item;
+  return { item, merged: false };
 }
 
 export async function getRecentAttempts(db: IDBDatabase, limit = 10) {
@@ -247,23 +267,77 @@ async function seedVocabulary(db: IDBDatabase) {
     return;
   }
 
-  const existingItems = new Map((await getAllItems(db)).map((item) => [item.id, item]));
+  const [existingItems, existingAttempts] = await Promise.all([
+    getAllItems(db),
+    getAllAttempts(db)
+  ]);
+  const seedGroups = groupByNormalizedTerm(vocabularySeed);
+  const existingGroups = groupByNormalizedTerm(existingItems);
+  const allTerms = new Set([...seedGroups.keys(), ...existingGroups.keys()]);
+  const mergedItems = new Map<string, VocabularyItem>();
+  const canonicalIdByOldId = new Map<string, string>();
+
+  for (const normalizedTerm of allTerms) {
+    const seeds = seedGroups.get(normalizedTerm) ?? [];
+    const storedItems = existingGroups.get(normalizedTerm) ?? [];
+    const base = seeds[0] ?? chooseStoredCanonical(storedItems);
+
+    if (!base) {
+      continue;
+    }
+
+    const meaningSources =
+      seeds.length > 0
+        ? [...seeds.map((seed) => seed.meaningJa), ...storedItems
+            .filter((item) => item.source === "custom")
+            .map((item) => item.meaningJa)]
+        : storedItems.map((item) => item.meaningJa);
+    const latestSeen = getLatestTimestamp(storedItems.map((item) => item.lastSeenAt));
+    const latestExclusion = getLatestTimestamp(storedItems.map((item) => item.excludedAt));
+    const mergedItem: VocabularyItem = {
+      ...base,
+      meaningJa: mergeMeanings(meaningSources),
+      totalAttempts: sum(storedItems.map((item) => item.totalAttempts)),
+      correctAttempts: sum(storedItems.map((item) => item.correctAttempts)),
+      uncertainAttempts: sum(storedItems.map((item) => item.uncertainAttempts ?? 0)),
+      incorrectAttempts: sum(storedItems.map((item) => item.incorrectAttempts)),
+      lastSeenAt: latestSeen,
+      excludedAt: latestExclusion
+    };
+
+    mergedItems.set(mergedItem.id, mergedItem);
+    for (const storedItem of storedItems) {
+      canonicalIdByOldId.set(storedItem.id, mergedItem.id);
+    }
+  }
+  const itemByNormalizedTerm = new Map(
+    [...mergedItems.values()].map((item) => [normalizeTerm(item.term), item])
+  );
 
   await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(["items", "meta"], "readwrite");
+    const transaction = db.transaction(["items", "attempts", "meta"], "readwrite");
     const itemStore = transaction.objectStore("items");
+    const attemptStore = transaction.objectStore("attempts");
 
-    for (const seed of vocabularySeed) {
-      const existing = existingItems.get(seed.id);
-      itemStore.put({
-        ...seed,
-        totalAttempts: existing?.totalAttempts ?? 0,
-        correctAttempts: existing?.correctAttempts ?? 0,
-        uncertainAttempts: existing?.uncertainAttempts ?? 0,
-        incorrectAttempts: existing?.incorrectAttempts ?? 0,
-        lastSeenAt: existing?.lastSeenAt ?? null,
-        excludedAt: existing?.excludedAt ?? null
-      });
+    itemStore.clear();
+    for (const item of mergedItems.values()) {
+      itemStore.put(item);
+    }
+
+    for (const attempt of existingAttempts) {
+      const normalizedTerm = normalizeTerm(attempt.term);
+      const fallbackItem = itemByNormalizedTerm.get(normalizedTerm);
+      const canonicalId = canonicalIdByOldId.get(attempt.itemId) ?? fallbackItem?.id;
+      const canonicalItem = canonicalId ? mergedItems.get(canonicalId) : undefined;
+
+      if (canonicalItem) {
+        attemptStore.put({
+          ...attempt,
+          itemId: canonicalItem.id,
+          term: canonicalItem.term,
+          meaningJa: canonicalItem.meaningJa
+        });
+      }
     }
 
     transaction.objectStore("meta").put({ key: "seedVersion", value: SEED_VERSION });
@@ -271,6 +345,47 @@ async function seedVocabulary(db: IDBDatabase) {
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
+}
+
+function normalizeTerm(term: string) {
+  return term.trim().toLocaleLowerCase("en-US").replace(/[‘’]/g, "'").replace(/\s+/g, " ");
+}
+
+function groupByNormalizedTerm<T extends { term: string }>(items: T[]) {
+  const groups = new Map<string, T[]>();
+
+  for (const item of items) {
+    const key = normalizeTerm(item.term);
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+
+  return groups;
+}
+
+function chooseStoredCanonical(items: VocabularyItem[]) {
+  return [...items].sort((left, right) => {
+    const customDifference = Number(left.source === "custom") - Number(right.source === "custom");
+    return customDifference || left.sourceRank - right.sourceRank;
+  })[0];
+}
+
+function mergeMeanings(meanings: string[]) {
+  const uniqueMeanings = meanings
+    .flatMap((meaning) => meaning.split(/[、；;]/))
+    .map((meaning) => meaning.trim())
+    .filter(Boolean)
+    .filter((meaning, index, all) => all.indexOf(meaning) === index);
+
+  return uniqueMeanings.join("、");
+}
+
+function getLatestTimestamp(values: Array<number | null | undefined>) {
+  const timestamps = values.filter((value): value is number => typeof value === "number");
+  return timestamps.length > 0 ? Math.max(...timestamps) : null;
+}
+
+function sum(values: number[]) {
+  return values.reduce((total, value) => total + value, 0);
 }
 
 function getMeta(db: IDBDatabase, key: string) {

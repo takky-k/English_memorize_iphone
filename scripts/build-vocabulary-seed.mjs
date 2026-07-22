@@ -49,7 +49,7 @@ const items = rows
     definitionEn,
     pos,
     itemType: "word",
-    source: "NGSL 1.01 en-ja",
+    source: "NGSL 1.01 + Japanese WordNet 1.1",
     sourceRank: Number(rank)
   }))
   .filter((item) => item.term && item.meaningJa);

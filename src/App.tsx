@@ -207,7 +207,7 @@ export default function App() {
       return;
     }
 
-    await addCustomVocabularyItem(db, {
+    const { merged } = await addCustomVocabularyItem(db, {
       term,
       meaningJa,
       definitionEn: newDefinition,
@@ -217,7 +217,11 @@ export default function App() {
     setNewMeaning("");
     setNewDefinition("");
     setNewItemType("word");
-    setAddMessage(`「${term}」を追加しました。次回以降の10問に出ます。`);
+    setAddMessage(
+      merged
+        ? `「${term}」の既存項目に和訳を追加しました。`
+        : `「${term}」を追加しました。次回以降の10問に出ます。`
+    );
     await refreshDashboard(db);
   }
 
@@ -372,6 +376,15 @@ export default function App() {
           <h2>保存方法</h2>
           <p>
             GitHub Pagesはアプリ本体だけを配信します。単語帳と回答履歴は、このスマホのブラウザ内IndexedDBに保存されます。
+            日本語訳には
+            <a
+              href="https://bond-lab.github.io/wnja/index.ja.html"
+              rel="noreferrer"
+              target="_blank"
+            >
+              日本語WordNet 1.1
+            </a>
+            を利用しています。
           </p>
         </div>
         <div className="utility-actions">
