@@ -14,11 +14,13 @@ export type VocabularySeedItem = {
 export type VocabularyItem = VocabularySeedItem & {
   totalAttempts: number;
   correctAttempts: number;
+  uncertainAttempts: number;
   incorrectAttempts: number;
   lastSeenAt: number | null;
+  excludedAt: number | null;
 };
 
-export type AnswerResult = "correct" | "incorrect";
+export type AnswerResult = "correct" | "uncertain" | "incorrect" | "excluded";
 
 export type AttemptRecord = {
   attemptId?: number;
@@ -32,7 +34,9 @@ export type AttemptRecord = {
 
 export type TestSummary = {
   correct: number;
+  uncertain: number;
   incorrect: number;
+  excluded: number;
   total: number;
 };
 
@@ -41,7 +45,9 @@ export type VocabularyStats = {
   words: number;
   phrases: number;
   known: number;
+  excluded: number;
   attempts: number;
   correct: number;
+  uncertain: number;
   incorrect: number;
 };

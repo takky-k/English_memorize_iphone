@@ -1,4 +1,4 @@
-const CACHE_NAME = "english-memory-pwa-v1";
+const CACHE_NAME = "english-memory-pwa-v2";
 const APP_SHELL = [
   "/English_memorize_iphone/",
   "/English_memorize_iphone/manifest.webmanifest",
@@ -26,6 +26,19 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
+    return;
+  }
+
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached ?? caches.match("/English_memorize_iphone/")))
+    );
     return;
   }
 

@@ -20,6 +20,13 @@ import type {
 } from "./types";
 
 const TEST_SIZE = 10;
+const initialSummary: TestSummary = {
+  correct: 0,
+  uncertain: 0,
+  incorrect: 0,
+  excluded: 0,
+  total: 0
+};
 
 type AnsweredItem = {
   item: VocabularyItem;
@@ -44,7 +51,7 @@ export default function App() {
   const [newDefinition, setNewDefinition] = useState("");
   const [newItemType, setNewItemType] = useState<VocabularyItemType>("word");
   const [addMessage, setAddMessage] = useState("");
-  const [summary, setSummary] = useState<TestSummary>({ correct: 0, incorrect: 0, total: 0 });
+  const [summary, setSummary] = useState<TestSummary>(initialSummary);
   const [sessionId, setSessionId] = useState(createSessionId);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -58,9 +65,15 @@ export default function App() {
   }, []);
 
   const currentItem = sessionItems[currentIndex];
-  const isFinished = summary.total >= TEST_SIZE || currentIndex >= TEST_SIZE;
+  const sessionTargetCount = Math.min(TEST_SIZE, sessionItems.length);
+  const isFinished =
+    sessionTargetCount > 0 &&
+    (summary.total >= sessionTargetCount || currentIndex >= sessionTargetCount);
   const scoreLabel = `${summary.correct} / ${summary.total}`;
-  const progressLabel = `${Math.min(currentIndex + 1, TEST_SIZE)} / ${TEST_SIZE}`;
+  const progressLabel =
+    sessionTargetCount > 0
+      ? `${Math.min(currentIndex + 1, sessionTargetCount)} / ${sessionTargetCount}`
+      : `0 / ${TEST_SIZE}`;
   const lifetimeAccuracyLabel =
     stats && stats.attempts > 0 ? `${Math.round((stats.correct / stats.attempts) * 100)}%` : "0%";
 
@@ -113,21 +126,24 @@ export default function App() {
     setCurrentIndex(0);
     setIsAnswerVisible(false);
     setAnsweredItems([]);
-    setSummary({ correct: 0, incorrect: 0, total: 0 });
+    setSummary(initialSummary);
     setSessionId(createSessionId());
     setIsLoading(false);
   }
 
   async function answer(result: AnswerResult) {
-    if (!db || !currentItem || !isAnswerVisible) {
+    if (!db || !currentItem || (result !== "excluded" && !isAnswerVisible)) {
       return;
     }
 
     await recordAnswer(db, currentItem, result, sessionId);
     setAnsweredItems((items) => [...items, { item: currentItem, result }]);
     setSummary((currentSummary) => ({
-      correct: currentSummary.correct + (result === "correct" ? 1 : 0),
+      correct:
+        currentSummary.correct + (result === "correct" || result === "excluded" ? 1 : 0),
+      uncertain: currentSummary.uncertain + (result === "uncertain" ? 1 : 0),
       incorrect: currentSummary.incorrect + (result === "incorrect" ? 1 : 0),
+      excluded: currentSummary.excluded + (result === "excluded" ? 1 : 0),
       total: currentSummary.total + 1
     }));
     setIsAnswerVisible(false);
@@ -167,7 +183,7 @@ export default function App() {
   }
 
   async function resetProgress() {
-    if (!db || !window.confirm("正解/不正解の履歴をすべてリセットします。よろしいですか？")) {
+    if (!db || !window.confirm("回答履歴とテスト除外をすべてリセットします。よろしいですか？")) {
       return;
     }
 
@@ -240,21 +256,31 @@ export default function App() {
         <Stat label="累計正解率" value={lifetimeAccuracyLabel} />
         <Stat label="登録語句" value={`${stats?.total ?? 0}`} />
         <Stat label="覚えた判定" value={`${stats?.known ?? 0}`} />
+        <Stat label="テスト除外" value={`${stats?.excluded ?? 0}`} />
         <Stat label="今回の正解" value={scoreLabel} />
       </section>
 
-      {isFinished ? (
+      {sessionItems.length === 0 ? (
+        <section className="finish-panel" aria-label="出題できる語句なし">
+          <div className="finish-heading">
+            <div>
+              <h2>出題できる語句がありません</h2>
+              <p>除外した語句を戻す場合は、履歴リセットで学習状態を初期化できます。</p>
+            </div>
+          </div>
+        </section>
+      ) : isFinished ? (
         <section className="finish-panel" aria-label="今回の結果">
           <div className="finish-heading">
             <div>
-              <h2>10問終了</h2>
-              <p>不正解は次回以降に出やすくなります。</p>
+              <h2>{sessionTargetCount}問終了</h2>
+              <p>不正解とあやふやは次回以降に出やすくなります。</p>
             </div>
             <strong>{accuracyLabel}</strong>
           </div>
 
           <div className="review-list">
-            <h3>今回の10問</h3>
+            <h3>今回の{sessionTargetCount}問</h3>
             {answeredItems.map(({ item, result }, index) => (
               <ResultRow
                 key={`${item.id}-${index}`}
@@ -314,12 +340,28 @@ export default function App() {
               不正解
             </button>
             <button
+              className="uncertain-button"
+              disabled={!isAnswerVisible}
+              type="button"
+              onClick={() => void answer("uncertain")}
+            >
+              あやふや
+            </button>
+            <button
               className="correct-button"
               disabled={!isAnswerVisible}
               type="button"
               onClick={() => void answer("correct")}
             >
               正解
+            </button>
+            <button
+              className="exclude-button"
+              disabled={!currentItem}
+              type="button"
+              onClick={() => void answer("excluded")}
+            >
+              もう出さない
             </button>
           </div>
         </section>
@@ -455,9 +497,20 @@ function ResultRow({
         </strong>
         <span>{meaning}</span>
       </div>
-      <span className={`result-chip ${result}`}>{result === "correct" ? "正解" : "不正解"}</span>
+      <span className={`result-chip ${result}`}>{getResultLabel(result)}</span>
     </div>
   );
+}
+
+function getResultLabel(result: AnswerResult) {
+  const labels: Record<AnswerResult, string> = {
+    correct: "正解",
+    uncertain: "あやふや",
+    incorrect: "不正解",
+    excluded: "除外"
+  };
+
+  return labels[result];
 }
 
 function SpeakerIcon() {

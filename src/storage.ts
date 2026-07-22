@@ -35,26 +35,39 @@ export async function getVocabularyStats(db: IDBDatabase): Promise<VocabularySta
 
   return items.reduce<VocabularyStats>(
     (stats, item) => {
-      const isKnown =
-        item.totalAttempts >= 3 &&
-        item.incorrectAttempts / Math.max(1, item.totalAttempts) <= 0.2;
+      const uncertainAttempts = item.uncertainAttempts ?? 0;
+      const incorrectAttempts = item.incorrectAttempts ?? 0;
+      const isExcluded = Boolean(item.excludedAt);
+      const isKnown = item.totalAttempts >= 3 && getDifficultyRate(item) <= 0.2;
 
       return {
         total: stats.total + 1,
         words: stats.words + (item.itemType === "word" ? 1 : 0),
         phrases: stats.phrases + (item.itemType === "phrase" ? 1 : 0),
         known: stats.known + (isKnown ? 1 : 0),
+        excluded: stats.excluded + (isExcluded ? 1 : 0),
         attempts: stats.attempts + item.totalAttempts,
         correct: stats.correct + item.correctAttempts,
-        incorrect: stats.incorrect + item.incorrectAttempts
+        uncertain: stats.uncertain + uncertainAttempts,
+        incorrect: stats.incorrect + incorrectAttempts
       };
     },
-    { total: 0, words: 0, phrases: 0, known: 0, attempts: 0, correct: 0, incorrect: 0 }
+    {
+      total: 0,
+      words: 0,
+      phrases: 0,
+      known: 0,
+      excluded: 0,
+      attempts: 0,
+      correct: 0,
+      uncertain: 0,
+      incorrect: 0
+    }
   );
 }
 
 export async function createTestSession(db: IDBDatabase) {
-  const items = await getAllItems(db);
+  const items = (await getAllItems(db)).filter((item) => !item.excludedAt);
   return sampleWeighted(items, TEST_SIZE);
 }
 
@@ -65,6 +78,7 @@ export async function recordAnswer(
   sessionId: string
 ) {
   const now = Date.now();
+  const isCorrectish = result === "correct" || result === "excluded";
 
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(["items", "attempts"], "readwrite");
@@ -79,11 +93,15 @@ export async function recordAnswer(
         ...(stored ?? item),
         totalAttempts: (stored?.totalAttempts ?? item.totalAttempts) + 1,
         correctAttempts:
-          (stored?.correctAttempts ?? item.correctAttempts) + (result === "correct" ? 1 : 0),
+          (stored?.correctAttempts ?? item.correctAttempts) + (isCorrectish ? 1 : 0),
+        uncertainAttempts:
+          (stored?.uncertainAttempts ?? item.uncertainAttempts ?? 0) +
+          (result === "uncertain" ? 1 : 0),
         incorrectAttempts:
           (stored?.incorrectAttempts ?? item.incorrectAttempts) +
           (result === "incorrect" ? 1 : 0),
-        lastSeenAt: now
+        lastSeenAt: now,
+        excludedAt: result === "excluded" ? now : stored?.excludedAt ?? item.excludedAt ?? null
       };
       const attempt: AttemptRecord = {
         itemId: item.id,
@@ -117,8 +135,10 @@ export async function addCustomVocabularyItem(db: IDBDatabase, input: CustomVoca
     sourceRank: now,
     totalAttempts: 0,
     correctAttempts: 0,
+    uncertainAttempts: 0,
     incorrectAttempts: 0,
-    lastSeenAt: null
+    lastSeenAt: null,
+    excludedAt: null
   };
 
   await new Promise<void>((resolve, reject) => {
@@ -174,8 +194,10 @@ export async function resetStudyProgress(db: IDBDatabase) {
         ...item,
         totalAttempts: 0,
         correctAttempts: 0,
+        uncertainAttempts: 0,
         incorrectAttempts: 0,
-        lastSeenAt: null
+        lastSeenAt: null,
+        excludedAt: null
       });
     }
 
@@ -237,8 +259,10 @@ async function seedVocabulary(db: IDBDatabase) {
         ...seed,
         totalAttempts: existing?.totalAttempts ?? 0,
         correctAttempts: existing?.correctAttempts ?? 0,
+        uncertainAttempts: existing?.uncertainAttempts ?? 0,
         incorrectAttempts: existing?.incorrectAttempts ?? 0,
-        lastSeenAt: existing?.lastSeenAt ?? null
+        lastSeenAt: existing?.lastSeenAt ?? null,
+        excludedAt: existing?.excludedAt ?? null
       });
     }
 
@@ -299,14 +323,32 @@ function sampleWeighted(items: VocabularyItem[], count: number) {
 }
 
 function getReviewWeight(item: VocabularyItem) {
+  if (item.excludedAt) {
+    return 0;
+  }
+
   const attempts = item.totalAttempts;
-  const incorrectRate = attempts === 0 ? 0.45 : item.incorrectAttempts / attempts;
-  const stableKnown = attempts >= 3 && incorrectRate <= 0.2;
+  const uncertainAttempts = item.uncertainAttempts ?? 0;
+  const incorrectAttempts = item.incorrectAttempts ?? 0;
+  const difficultyRate = getDifficultyRate(item);
+  const stableKnown = attempts >= 3 && difficultyRate <= 0.2;
   const newItemBonus = attempts === 0 ? 1.3 : 1;
-  const mistakeBonus = 1 + item.incorrectAttempts * 0.38 + incorrectRate * 2.5;
+  const mistakeBonus = 1 + incorrectAttempts * 0.38 + uncertainAttempts * 0.18 + difficultyRate * 2.5;
   const knownPenalty = stableKnown ? 0.22 : 1;
-  const oldSeenBonus = item.lastSeenAt ? Math.min(1.5, (Date.now() - item.lastSeenAt) / 604800000) : 1;
+  const oldSeenBonus = item.lastSeenAt
+    ? Math.min(1.5, (Date.now() - item.lastSeenAt) / 604800000)
+    : 1;
   const frequencyPriority = Math.max(0.35, 1.12 - item.sourceRank / 5200);
 
   return Math.max(0.05, newItemBonus * mistakeBonus * knownPenalty * oldSeenBonus * frequencyPriority);
+}
+
+function getDifficultyRate(item: VocabularyItem) {
+  const attempts = item.totalAttempts;
+
+  if (attempts === 0) {
+    return 0.45;
+  }
+
+  return ((item.incorrectAttempts ?? 0) + (item.uncertainAttempts ?? 0) * 0.5) / attempts;
 }

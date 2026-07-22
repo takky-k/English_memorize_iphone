@@ -259,8 +259,16 @@ button:disabled {
   background: #dc2626;
 }
 
+.uncertain-button {
+  background: #d97706;
+}
+
 .correct-button {
   background: #0f766e;
+}
+
+.exclude-button {
+  background: #334155;
 }
 
 .finish-panel,
@@ -354,6 +362,16 @@ button:disabled {
 .result-chip.incorrect {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.result-chip.uncertain {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.result-chip.excluded {
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .source-panel {
