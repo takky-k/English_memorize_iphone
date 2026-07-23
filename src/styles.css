@@ -18,7 +18,7 @@ html {
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
 }
 
 button {
@@ -84,14 +84,27 @@ button:disabled {
   margin: 6px 0 0;
 }
 
+.header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 .small-dark-button,
-.primary-button {
+.primary-button,
+.outline-button {
   background: #111827;
   color: #ffffff;
   font-size: 14px;
   font-weight: 800;
   padding: 11px 13px;
   white-space: nowrap;
+}
+
+.outline-button {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
 }
 
 .primary-button {
@@ -140,6 +153,100 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.screening-screen {
+  max-width: 620px;
+}
+
+.screening-header {
+  align-items: center;
+}
+
+.screening-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.screening-progress > div:first-child {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+}
+
+.screening-progress strong {
+  color: #0f766e;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.screening-progress span {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.progress-track {
+  background: #dbe3e8;
+  border-radius: 8px;
+  height: 10px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.progress-track span {
+  background: #0f766e;
+  display: block;
+  height: 100%;
+  min-width: 0;
+  transition: width 140ms ease-out;
+}
+
+.flip-card.screening-card {
+  height: clamp(250px, 43dvh, 360px);
+  min-height: 250px;
+}
+
+.screening-actions {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(90px, 0.75fr) minmax(160px, 1.25fr);
+}
+
+.screening-actions button {
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 900;
+  min-height: 62px;
+  padding: 14px 12px;
+}
+
+.screening-keep-button {
+  background: #0f766e;
+}
+
+.screening-exclude-button {
+  background: #111827;
+}
+
+.screening-undo-button {
+  align-self: center;
+  background: transparent;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 900;
+  min-height: 42px;
+  padding: 8px 14px;
+}
+
+.screening-undo-button:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.screening-finish {
+  margin-top: 32px;
 }
 
 .question-meta {
@@ -467,21 +574,40 @@ button:disabled {
   }
 }
 
+@media (max-width: 480px) {
+  .app-header {
+    flex-direction: column;
+  }
+
+  .screening-header {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .header-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+}
+
 @media (max-width: 360px) {
   .screen {
     padding-left: 12px;
     padding-right: 12px;
   }
 
-  .app-header {
-    flex-direction: column;
-  }
-
-  .small-dark-button {
-    width: 100%;
-  }
-
   .stats-grid {
     grid-template-columns: 1fr;
+  }
+
+  .screening-actions {
+    grid-template-columns: minmax(82px, 0.7fr) minmax(150px, 1.3fr);
+  }
+
+  .screening-actions button {
+    font-size: 16px;
+    padding-left: 8px;
+    padding-right: 8px;
   }
 }

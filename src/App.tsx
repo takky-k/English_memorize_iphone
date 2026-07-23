@@ -2,17 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   addCustomVocabularyItem,
+  createScreeningSession,
   createTestSession,
   exportStudyData,
   getRecentAttempts,
   getVocabularyStats,
   initializeStore,
   recordAnswer,
-  resetStudyProgress
+  resetStudyProgress,
+  restoreScreeningItem,
+  screenVocabularyItem
 } from "./storage";
 import type {
   AnswerResult,
   AttemptRecord,
+  ScreeningDecision,
   TestSummary,
   VocabularyItemType,
   VocabularyItem,
@@ -31,6 +35,13 @@ const initialSummary: TestSummary = {
 type AnsweredItem = {
   item: VocabularyItem;
   result: AnswerResult;
+};
+
+type AppMode = "test" | "screening";
+
+type ScreeningUndo = {
+  item: VocabularyItem;
+  decision: ScreeningDecision;
 };
 
 function createSessionId() {
@@ -55,6 +66,14 @@ export default function App() {
   const [sessionId, setSessionId] = useState(createSessionId);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [mode, setMode] = useState<AppMode>("test");
+  const [screeningItems, setScreeningItems] = useState<VocabularyItem[]>([]);
+  const [screeningIndex, setScreeningIndex] = useState(0);
+  const [screeningBaseCompleted, setScreeningBaseCompleted] = useState(0);
+  const [screeningTotal, setScreeningTotal] = useState(0);
+  const [isScreeningMeaningVisible, setIsScreeningMeaningVisible] = useState(false);
+  const [isScreeningSaving, setIsScreeningSaving] = useState(false);
+  const [screeningUndo, setScreeningUndo] = useState<ScreeningUndo[]>([]);
 
   useEffect(() => {
     void initialize();
@@ -65,6 +84,14 @@ export default function App() {
   }, []);
 
   const currentItem = sessionItems[currentIndex];
+  const currentScreeningItem = screeningItems[screeningIndex];
+  const screeningCompleted = Math.min(
+    screeningBaseCompleted + screeningIndex,
+    screeningTotal
+  );
+  const screeningRemaining = Math.max(screeningTotal - screeningCompleted, 0);
+  const screeningProgress =
+    screeningTotal > 0 ? Math.round((screeningCompleted / screeningTotal) * 100) : 100;
   const sessionTargetCount = Math.min(TEST_SIZE, sessionItems.length);
   const isFinished =
     sessionTargetCount > 0 &&
@@ -131,6 +158,80 @@ export default function App() {
     setIsLoading(false);
   }
 
+  async function startScreening(database = db) {
+    if (!database) {
+      return;
+    }
+
+    setIsLoading(true);
+    const nextScreening = await createScreeningSession(database);
+    setScreeningItems(nextScreening.items);
+    setScreeningIndex(0);
+    setScreeningBaseCompleted(nextScreening.completed);
+    setScreeningTotal(nextScreening.total);
+    setIsScreeningMeaningVisible(false);
+    setScreeningUndo([]);
+    setMode("screening");
+    setIsLoading(false);
+  }
+
+  async function leaveScreening() {
+    if (!db) {
+      return;
+    }
+
+    setMode("test");
+    await refreshDashboard(db);
+    await startNewSession(db);
+  }
+
+  async function screenCurrentItem(decision: ScreeningDecision) {
+    if (!db || !currentScreeningItem || isScreeningSaving) {
+      return;
+    }
+
+    setIsScreeningSaving(true);
+    try {
+      await screenVocabularyItem(db, currentScreeningItem, decision);
+      setScreeningUndo((entries) => [...entries, { item: currentScreeningItem, decision }]);
+      setScreeningIndex((index) => index + 1);
+      setIsScreeningMeaningVisible(false);
+
+      if (decision === "exclude") {
+        setStats((currentStats) =>
+          currentStats ? { ...currentStats, excluded: currentStats.excluded + 1 } : currentStats
+        );
+      }
+    } finally {
+      setIsScreeningSaving(false);
+    }
+  }
+
+  async function undoScreening() {
+    if (!db || screeningUndo.length === 0 || isScreeningSaving) {
+      return;
+    }
+
+    const lastEntry = screeningUndo[screeningUndo.length - 1];
+    setIsScreeningSaving(true);
+    try {
+      await restoreScreeningItem(db, lastEntry.item);
+      setScreeningUndo((entries) => entries.slice(0, -1));
+      setScreeningIndex((index) => Math.max(0, index - 1));
+      setIsScreeningMeaningVisible(false);
+
+      if (lastEntry.decision === "exclude") {
+        setStats((currentStats) =>
+          currentStats
+            ? { ...currentStats, excluded: Math.max(0, currentStats.excluded - 1) }
+            : currentStats
+        );
+      }
+    } finally {
+      setIsScreeningSaving(false);
+    }
+  }
+
   async function answer(result: AnswerResult) {
     if (!db || !currentItem || (result !== "excluded" && !isAnswerVisible)) {
       return;
@@ -183,11 +284,17 @@ export default function App() {
   }
 
   async function resetProgress() {
-    if (!db || !window.confirm("回答履歴とテスト除外をすべてリセットします。よろしいですか？")) {
+    if (
+      !db ||
+      !window.confirm(
+        "回答履歴、テスト除外、高速仕分けの進捗をすべてリセットします。よろしいですか？"
+      )
+    ) {
       return;
     }
 
     await resetStudyProgress(db);
+    setMode("test");
     await refreshDashboard(db);
     await startNewSession(db);
   }
@@ -243,6 +350,118 @@ export default function App() {
     );
   }
 
+  if (mode === "screening") {
+    return (
+      <main className="screen screening-screen">
+        <header className="app-header screening-header">
+          <div>
+            <h1>高速仕分け</h1>
+            <p>
+              {screeningCompleted} / {screeningTotal} 完了
+            </p>
+          </div>
+          <button
+            className="outline-button"
+            disabled={isScreeningSaving}
+            type="button"
+            onClick={() => void leaveScreening()}
+          >
+            テストへ戻る
+          </button>
+        </header>
+
+        <section className="screening-progress" aria-label="仕分けの進捗">
+          <div>
+            <strong>{screeningProgress}%</strong>
+            <span>残り {screeningRemaining}語句</span>
+          </div>
+          <div
+            aria-valuemax={screeningTotal}
+            aria-valuemin={0}
+            aria-valuenow={screeningCompleted}
+            className="progress-track"
+            role="progressbar"
+          >
+            <span style={{ width: `${screeningProgress}%` }} />
+          </div>
+        </section>
+
+        {!currentScreeningItem ? (
+          <section className="finish-panel screening-finish" aria-label="仕分け完了">
+            <div className="finish-heading">
+              <div>
+                <h2>仕分け完了</h2>
+                <p>残した語句だけが、今後の10問テストに出題されます。</p>
+              </div>
+              <strong>100%</strong>
+            </div>
+            <button className="primary-button" type="button" onClick={() => void leaveScreening()}>
+              10問テストへ
+            </button>
+          </section>
+        ) : (
+          <section className="study-panel screening-panel" aria-label="高速仕分け">
+            <div className="question-meta">
+              <span>
+                {screeningCompleted + 1} / {screeningTotal}
+              </span>
+              <span>
+                {currentScreeningItem.itemType === "phrase" ? "熟語・句動詞" : "英単語"}
+              </span>
+            </div>
+
+            <button
+              aria-label={`${currentScreeningItem.term}の和訳を表示`}
+              className={`flip-card screening-card ${
+                isScreeningMeaningVisible ? "is-flipped" : ""
+              }`}
+              type="button"
+              onClick={() => setIsScreeningMeaningVisible(true)}
+            >
+              <span className="card-hint">
+                {isScreeningMeaningVisible ? "和訳" : "英語"}
+              </span>
+              <span className="term">{currentScreeningItem.term}</span>
+              {isScreeningMeaningVisible ? (
+                <span className="answer-block">
+                  <span className="meaning">{currentScreeningItem.meaningJa}</span>
+                  <span className="definition">{currentScreeningItem.definitionEn}</span>
+                </span>
+              ) : null}
+            </button>
+
+            <div className="screening-actions">
+              <button
+                className="screening-keep-button"
+                disabled={isScreeningSaving}
+                type="button"
+                onClick={() => void screenCurrentItem("keep")}
+              >
+                残す
+              </button>
+              <button
+                className="screening-exclude-button"
+                disabled={isScreeningSaving}
+                type="button"
+                onClick={() => void screenCurrentItem("exclude")}
+              >
+                除外して次へ
+              </button>
+            </div>
+            <button
+              className="screening-undo-button"
+              disabled={screeningUndo.length === 0 || isScreeningSaving}
+              type="button"
+              onClick={() => void undoScreening()}
+            >
+              ひとつ戻す
+            </button>
+          </section>
+        )}
+      </main>
+    );
+  }
+
   return (
     <main className="screen">
       <header className="app-header">
@@ -250,9 +469,14 @@ export default function App() {
           <h1>英単語メモリー</h1>
           <p>10問ずつ、苦手な語句を濃く復習する。</p>
         </div>
-        <button className="small-dark-button" type="button" onClick={() => void startNewSession()}>
-          新しい10問
-        </button>
+        <div className="header-actions">
+          <button className="outline-button" type="button" onClick={() => void startScreening()}>
+            高速仕分け
+          </button>
+          <button className="small-dark-button" type="button" onClick={() => void startNewSession()}>
+            新しい10問
+          </button>
+        </div>
       </header>
 
       <section className="stats-grid" aria-label="学習状況">

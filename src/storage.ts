@@ -2,6 +2,7 @@ import { vocabularySeed } from "./data/vocabularySeed";
 import type {
   AnswerResult,
   AttemptRecord,
+  ScreeningDecision,
   VocabularyItemType,
   VocabularyItem,
   VocabularyStats
@@ -9,7 +10,7 @@ import type {
 
 const DB_NAME = "english-memory-pwa";
 const DB_VERSION = 1;
-const SEED_VERSION = "2026-07-22-deduplicated-multiple-meanings";
+const SEED_VERSION = "2026-07-23-fast-screening";
 const TEST_SIZE = 10;
 
 type StoreName = "items" | "attempts" | "meta";
@@ -71,6 +72,62 @@ export async function createTestSession(db: IDBDatabase) {
   return sampleWeighted(items, TEST_SIZE);
 }
 
+export async function createScreeningSession(db: IDBDatabase) {
+  const allItems = await getAllItems(db);
+  const items = allItems
+    .filter((item) => !item.excludedAt && !item.screenedAt)
+    .sort((left, right) => {
+      const typeDifference = Number(left.itemType === "phrase") - Number(right.itemType === "phrase");
+      return typeDifference || left.sourceRank - right.sourceRank || left.term.localeCompare(right.term);
+    });
+  const completed = allItems.filter((item) => item.excludedAt || item.screenedAt).length;
+
+  return {
+    items,
+    completed,
+    total: allItems.length
+  };
+}
+
+export async function screenVocabularyItem(
+  db: IDBDatabase,
+  item: VocabularyItem,
+  decision: ScreeningDecision
+) {
+  const now = Date.now();
+
+  return new Promise<VocabularyItem>((resolve, reject) => {
+    const transaction = db.transaction("items", "readwrite");
+    const store = transaction.objectStore("items");
+    const request = store.get(item.id);
+    let nextItem = item;
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const stored = request.result as VocabularyItem | undefined;
+      nextItem = {
+        ...(stored ?? item),
+        screenedAt: now,
+        excludedAt: decision === "exclude" ? now : stored?.excludedAt ?? item.excludedAt ?? null
+      };
+      store.put(nextItem);
+    };
+    transaction.oncomplete = () => resolve(nextItem);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
+export async function restoreScreeningItem(db: IDBDatabase, item: VocabularyItem) {
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction("items", "readwrite");
+    transaction.objectStore("items").put(item);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
 export async function recordAnswer(
   db: IDBDatabase,
   item: VocabularyItem,
@@ -101,7 +158,8 @@ export async function recordAnswer(
           (stored?.incorrectAttempts ?? item.incorrectAttempts) +
           (result === "incorrect" ? 1 : 0),
         lastSeenAt: now,
-        excludedAt: result === "excluded" ? now : stored?.excludedAt ?? item.excludedAt ?? null
+        excludedAt: result === "excluded" ? now : stored?.excludedAt ?? item.excludedAt ?? null,
+        screenedAt: stored?.screenedAt ?? item.screenedAt ?? null
       };
       const attempt: AttemptRecord = {
         itemId: item.id,
@@ -158,7 +216,8 @@ export async function addCustomVocabularyItem(db: IDBDatabase, input: CustomVoca
     uncertainAttempts: 0,
     incorrectAttempts: 0,
     lastSeenAt: null,
-    excludedAt: null
+    excludedAt: null,
+    screenedAt: null
   };
 
   await new Promise<void>((resolve, reject) => {
@@ -217,7 +276,8 @@ export async function resetStudyProgress(db: IDBDatabase) {
         uncertainAttempts: 0,
         incorrectAttempts: 0,
         lastSeenAt: null,
-        excludedAt: null
+        excludedAt: null,
+        screenedAt: null
       });
     }
 
@@ -294,6 +354,7 @@ async function seedVocabulary(db: IDBDatabase) {
         : storedItems.map((item) => item.meaningJa);
     const latestSeen = getLatestTimestamp(storedItems.map((item) => item.lastSeenAt));
     const latestExclusion = getLatestTimestamp(storedItems.map((item) => item.excludedAt));
+    const latestScreening = getLatestTimestamp(storedItems.map((item) => item.screenedAt));
     const mergedItem: VocabularyItem = {
       ...base,
       meaningJa: mergeMeanings(meaningSources),
@@ -302,7 +363,8 @@ async function seedVocabulary(db: IDBDatabase) {
       uncertainAttempts: sum(storedItems.map((item) => item.uncertainAttempts ?? 0)),
       incorrectAttempts: sum(storedItems.map((item) => item.incorrectAttempts)),
       lastSeenAt: latestSeen,
-      excludedAt: latestExclusion
+      excludedAt: latestExclusion,
+      screenedAt: latestScreening
     };
 
     mergedItems.set(mergedItem.id, mergedItem);

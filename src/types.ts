@@ -18,9 +18,11 @@ export type VocabularyItem = VocabularySeedItem & {
   incorrectAttempts: number;
   lastSeenAt: number | null;
   excludedAt: number | null;
+  screenedAt: number | null;
 };
 
 export type AnswerResult = "correct" | "uncertain" | "incorrect" | "excluded";
+export type ScreeningDecision = "keep" | "exclude";
 
 export type AttemptRecord = {
   attemptId?: number;
