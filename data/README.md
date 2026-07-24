@@ -34,12 +34,22 @@ Reference checked:
 
 - Official NGSL site says NGSL 1.2 has 2809 words and is licensed under Creative Commons Attribution-ShareAlike 4.0 International.
 
-## Phrasal Verbs
+## Phrasal Verbs and Daily Expressions
 
-The app currently includes a 50-item starter set of common daily phrasal verbs in `src/data/phrasalVerbSeed.ts`.
+The app includes:
 
-Reference checked:
+- 50 hand-selected daily phrasal verbs in `src/data/phrasalVerbSeed.ts`
+- 110 additional PHaVE-ranked phrasal verbs in `src/data/phaveExpansionSeed.ts`
+- 272 daily spoken chunks and practical expressions in `src/data/dailyPhraseSeed.ts`
 
-- PHaVE List: a research-based list of 150 frequent phrasal verbs and meanings.
+References checked:
 
-There does not appear to be one canonical public "700 daily essential phrasal verbs" list. The database schema supports adding a larger CSV-backed phrase list later.
+- PHaVE List: 150 frequent phrasal verbs and their major corpus senses
+- PHRASE List: 505 frequent non-transparent multiword expressions from the BNC
+- Cambridge Grammar spoken-English sections on chunks, discourse markers, and vague expressions
+- BBC Learning English and VOA Learning English daily-expression videos and transcripts
+- Cambridge Dictionary entries for individual meaning checks
+
+Definitions in the seed are short original paraphrases. Japanese meanings were manually
+reviewed for the everyday senses selected. Run `pnpm run audit:data` to check for blank
+fields and normalized duplicate terms.

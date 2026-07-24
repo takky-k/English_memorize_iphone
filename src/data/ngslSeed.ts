@@ -2904,8 +2904,8 @@ export const ngslSeed: VocabularySeedItem[] = [
   {
     "id": "ngsl-1-01-291",
     "term": "actually",
-    "meaningJa": "実際、本当に",
-    "definitionEn": "used when you are saying what is the truth of a situation",
+    "meaningJa": "実際、実は、本当に",
+    "definitionEn": "used to state the truth, correct an expectation, or add detail in conversation",
     "pos": "adverb",
     "itemType": "word",
     "source": "NGSL 1.01 + Japanese WordNet 1.1",
@@ -8914,8 +8914,8 @@ export const ngslSeed: VocabularySeedItem[] = [
   {
     "id": "ngsl-1-01-892",
     "term": "anyway",
-    "meaningJa": "とにかく",
-    "definitionEn": "despite something that has been stated before ",
+    "meaningJa": "とにかく、それはさておき、それでも",
+    "definitionEn": "used despite what was said before, or to return to or change a topic",
     "pos": "adverb",
     "itemType": "word",
     "source": "NGSL 1.01 + Japanese WordNet 1.1",
@@ -12744,7 +12744,7 @@ export const ngslSeed: VocabularySeedItem[] = [
   {
     "id": "ngsl-1-01-1275",
     "term": "apparently",
-    "meaningJa": "～そうだ、～らしい、一見",
+    "meaningJa": "どうやら、～らしい、一見",
     "definitionEn": "used to say that something seems to be true, although it is not certain",
     "pos": "adverb",
     "itemType": "word",
