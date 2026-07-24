@@ -287,7 +287,7 @@ export default function App() {
     if (
       !db ||
       !window.confirm(
-        "回答履歴、テスト除外、高速仕分けの進捗をすべてリセットします。よろしいですか？"
+        "回答履歴と仕分けの進捗をリセットします。大学生向けの既知語は除外のまま残します。よろしいですか？"
       )
     ) {
       return;
@@ -421,7 +421,9 @@ export default function App() {
               <span className="card-hint">
                 {isScreeningMeaningVisible ? "和訳" : "英語"}
               </span>
-              <span className="term">{currentScreeningItem.term}</span>
+              <span className={`term ${getTermSizeClass(currentScreeningItem.term)}`}>
+                {currentScreeningItem.term}
+              </span>
               {isScreeningMeaningVisible ? (
                 <span className="answer-block">
                   <span className="meaning">{currentScreeningItem.meaningJa}</span>
@@ -467,7 +469,7 @@ export default function App() {
       <header className="app-header">
         <div>
           <h1>英単語メモリー</h1>
-          <p>10問ずつ、苦手な語句を濃く復習する。</p>
+          <p>大学生向け。抽象語・多義語・熟語を10問ずつ復習する。</p>
         </div>
         <div className="header-actions">
           <button className="outline-button" type="button" onClick={() => void startScreening()}>
@@ -549,7 +551,9 @@ export default function App() {
             onClick={() => setIsAnswerVisible(true)}
           >
             <span className="card-hint">{isAnswerVisible ? "和訳" : "タップして和訳を表示"}</span>
-            <span className="term">{currentItem?.term}</span>
+            <span className={`term ${getTermSizeClass(currentItem?.term ?? "")}`}>
+              {currentItem?.term}
+            </span>
             {isAnswerVisible ? (
               <span className="answer-block">
                 <span className="meaning">{currentItem?.meaningJa}</span>
@@ -737,6 +741,24 @@ function ResultRow({
       <span className={`result-chip ${result}`}>{getResultLabel(result)}</span>
     </div>
   );
+}
+
+function getTermSizeClass(term: string) {
+  const longestPart = Math.max(...term.split(/[\s-]+/).map((part) => part.length), 0);
+
+  if (longestPart >= 16) {
+    return "term-extra-long";
+  }
+
+  if (longestPart >= 13) {
+    return "term-long";
+  }
+
+  if (longestPart >= 10) {
+    return "term-compact";
+  }
+
+  return "";
 }
 
 function getResultLabel(result: AnswerResult) {

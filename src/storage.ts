@@ -1,4 +1,5 @@
 import { vocabularySeed } from "./data/vocabularySeed";
+import { isPersonalBaselineKnown } from "./data/personalDifficultyProfile";
 import type {
   AnswerResult,
   AttemptRecord,
@@ -10,8 +11,9 @@ import type {
 
 const DB_NAME = "english-memory-pwa";
 const DB_VERSION = 1;
-const SEED_VERSION = "2026-07-24-personalized";
+const SEED_VERSION = "2026-07-24-university-difficulty";
 const TEST_SIZE = 10;
+const BASELINE_SCREENED_AT = Date.UTC(2026, 6, 24);
 
 type StoreName = "items" | "attempts" | "meta";
 type MetaRecord = {
@@ -269,6 +271,8 @@ export async function resetStudyProgress(db: IDBDatabase) {
     const itemStore = transaction.objectStore("items");
 
     for (const item of items) {
+      const baselineKnown = isPersonalBaselineKnown(item);
+
       itemStore.put({
         ...item,
         totalAttempts: 0,
@@ -276,8 +280,8 @@ export async function resetStudyProgress(db: IDBDatabase) {
         uncertainAttempts: 0,
         incorrectAttempts: 0,
         lastSeenAt: null,
-        excludedAt: null,
-        screenedAt: null
+        excludedAt: baselineKnown ? BASELINE_SCREENED_AT : null,
+        screenedAt: baselineKnown ? BASELINE_SCREENED_AT : null
       });
     }
 
@@ -355,6 +359,14 @@ async function seedVocabulary(db: IDBDatabase) {
     const latestSeen = getLatestTimestamp(storedItems.map((item) => item.lastSeenAt));
     const latestExclusion = getLatestTimestamp(storedItems.map((item) => item.excludedAt));
     const latestScreening = getLatestTimestamp(storedItems.map((item) => item.screenedAt));
+    const hasLearningHistory = storedItems.some(
+      (item) => item.totalAttempts > 0 || item.lastSeenAt !== null
+    );
+    const useBaseline =
+      isPersonalBaselineKnown(base) &&
+      latestExclusion === null &&
+      latestScreening === null &&
+      !hasLearningHistory;
     const mergedItem: VocabularyItem = {
       ...base,
       meaningJa: mergeMeanings(meaningSources),
@@ -363,8 +375,8 @@ async function seedVocabulary(db: IDBDatabase) {
       uncertainAttempts: sum(storedItems.map((item) => item.uncertainAttempts ?? 0)),
       incorrectAttempts: sum(storedItems.map((item) => item.incorrectAttempts)),
       lastSeenAt: latestSeen,
-      excludedAt: latestExclusion,
-      screenedAt: latestScreening
+      excludedAt: latestExclusion ?? (useBaseline ? BASELINE_SCREENED_AT : null),
+      screenedAt: latestScreening ?? (useBaseline ? BASELINE_SCREENED_AT : null)
     };
 
     mergedItems.set(mergedItem.id, mergedItem);
@@ -515,9 +527,28 @@ function getReviewWeight(item: VocabularyItem) {
   const oldSeenBonus = item.lastSeenAt
     ? Math.min(1.5, (Date.now() - item.lastSeenAt) / 604800000)
     : 1;
-  const frequencyPriority = Math.max(0.35, 1.12 - item.sourceRank / 5200);
+  const curriculumPriority = getCurriculumPriority(item);
 
-  return Math.max(0.05, newItemBonus * mistakeBonus * knownPenalty * oldSeenBonus * frequencyPriority);
+  return Math.max(
+    0.05,
+    newItemBonus * mistakeBonus * knownPenalty * oldSeenBonus * curriculumPriority
+  );
+}
+
+function getCurriculumPriority(item: VocabularyItem) {
+  if (item.source.startsWith("personal screening analysis")) {
+    return 1.35;
+  }
+
+  if (item.itemType === "phrase") {
+    return 1.2;
+  }
+
+  if (item.source.startsWith("NGSL 1.01")) {
+    return 0.72 + Math.min(0.58, item.sourceRank / 2801 * 0.58);
+  }
+
+  return 1;
 }
 
 function getDifficultyRate(item: VocabularyItem) {

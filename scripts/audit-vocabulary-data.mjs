@@ -10,6 +10,7 @@ const phrasePaths = [
 ];
 const personalizedPath = path.join(root, "src", "data", "personalizedExpansionSeed.ts");
 const overridePath = path.join(root, "src", "data", "ngslMeaningOverrides.ts");
+const difficultyPath = path.join(root, "src", "data", "personalDifficultyProfile.ts");
 
 const ngslSource = fs.readFileSync(ngslPath, "utf8");
 const ngslItems = JSON.parse(
@@ -20,7 +21,8 @@ const items = ngslItems.map((item) => ({
   term: item.term,
   meaningJa: item.meaningJa,
   definitionEn: item.definitionEn,
-  itemType: "word"
+  itemType: "word",
+  sourceRank: item.sourceRank
 }));
 
 for (const phrasePath of phrasePaths) {
@@ -64,6 +66,14 @@ const overrideSource = fs.readFileSync(overridePath, "utf8");
 const overrideRows = [...overrideSource.matchAll(
   /^\s{2}([a-z]+):\s*\{\s*\r?\n\s*meaningJa:\s*"([^"]+)",\s*\r?\n\s*definitionEn:\s*"([^"]+)"/gm
 )];
+const difficultySource = fs.readFileSync(difficultyPath, "utf8");
+const difficultyRanks = JSON.parse(
+  `[${difficultySource.slice(
+    difficultySource.indexOf("new Set([") + "new Set([".length,
+    difficultySource.indexOf("]);")
+  )}]`
+);
+const uniqueDifficultyRanks = new Set(difficultyRanks);
 
 for (const match of overrideRows) {
   const item = itemByTerm.get(normalizeTerm(match[1]));
@@ -75,6 +85,32 @@ for (const match of overrideRows) {
 
   item.meaningJa = match[2];
   item.definitionEn = match[3];
+}
+
+if (difficultyRanks.length !== uniqueDifficultyRanks.size) {
+  errors.push("Personal difficulty profile contains duplicate NGSL ranks");
+}
+
+for (const rank of difficultyRanks) {
+  if (!Number.isInteger(rank) || rank < 1 || rank > ngslItems.length) {
+    errors.push(`Invalid NGSL rank in personal difficulty profile: ${rank}`);
+  }
+}
+
+for (const basicTerm of ["we", "fish", "key"]) {
+  const item = itemByTerm.get(basicTerm);
+
+  if (!item || uniqueDifficultyRanks.has(item.sourceRank)) {
+    errors.push(`Basic term should remain outside the review profile: ${basicTerm}`);
+  }
+}
+
+for (const retainedTerm of ["kind", "state", "charge"]) {
+  const item = itemByTerm.get(retainedTerm);
+
+  if (!item || !uniqueDifficultyRanks.has(item.sourceRank)) {
+    errors.push(`Retained polysemous term is missing from review profile: ${retainedTerm}`);
+  }
 }
 
 for (const item of items) {
@@ -103,7 +139,8 @@ if (errors.length > 0) {
   console.log(
     `Vocabulary audit passed: ${items.length} unique items ` +
       `(${wordCount} words, ${phraseCount} phrases, ` +
-      `${overrideRows.length} reviewed NGSL meanings).`
+      `${overrideRows.length} reviewed NGSL meanings, ` +
+      `${uniqueDifficultyRanks.size} personal review ranks).`
   );
 }
 

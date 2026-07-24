@@ -44,6 +44,8 @@ The app includes:
 - 40 targeted words and 80 collocations or conversation frames in
   `src/data/personalizedExpansionSeed.ts`
 - 51 reviewed high-frequency meanings in `src/data/ngslMeaningOverrides.ts`
+- 475 retained NGSL ranks in `src/data/personalDifficultyProfile.ts`; the other
+  2,326 screened NGSL words form the known university-level baseline
 
 References checked:
 
@@ -55,4 +57,5 @@ References checked:
 
 Definitions in the seed are short original paraphrases. Japanese meanings were manually
 reviewed for the everyday senses selected. Run `pnpm run audit:data` to check for blank
-fields, normalized duplicate terms, and valid NGSL meaning overrides.
+fields, normalized duplicate terms, valid NGSL meaning overrides, and the personal
+difficulty profile.
