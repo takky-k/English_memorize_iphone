@@ -12,6 +12,7 @@ import type {
 const DB_NAME = "english-memory-pwa";
 const DB_VERSION = 1;
 const SEED_VERSION = "2026-07-24-university-difficulty";
+const KEEP_REMAINING_SCREENING_VERSION = "2026-07-24-keep-all-remaining";
 const TEST_SIZE = 10;
 const BASELINE_SCREENED_AT = Date.UTC(2026, 6, 24);
 
@@ -30,6 +31,7 @@ type CustomVocabularyInput = {
 export async function initializeStore() {
   const db = await openDatabase();
   await seedVocabulary(db);
+  await keepAllRemainingScreeningItems(db);
   return db;
 }
 
@@ -415,6 +417,37 @@ async function seedVocabulary(db: IDBDatabase) {
     }
 
     transaction.objectStore("meta").put({ key: "seedVersion", value: SEED_VERSION });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
+async function keepAllRemainingScreeningItems(db: IDBDatabase) {
+  const metaKey = "keepRemainingScreeningVersion";
+  const currentVersion = await getMeta(db, metaKey);
+
+  if (currentVersion === KEEP_REMAINING_SCREENING_VERSION) {
+    return;
+  }
+
+  const items = await getAllItems(db);
+  const screenedAt = Date.now();
+
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(["items", "meta"], "readwrite");
+    const itemStore = transaction.objectStore("items");
+
+    for (const item of items) {
+      if (!item.excludedAt && !item.screenedAt) {
+        itemStore.put({ ...item, screenedAt });
+      }
+    }
+
+    transaction.objectStore("meta").put({
+      key: metaKey,
+      value: KEEP_REMAINING_SCREENING_VERSION
+    });
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
