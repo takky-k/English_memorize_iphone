@@ -1,4 +1,4 @@
-const CACHE_NAME = "english-memory-pwa-v7";
+const CACHE_NAME = "english-memory-pwa-v8";
 const APP_SHELL = [
   "/English_memorize_iphone/",
   "/English_memorize_iphone/manifest.webmanifest",

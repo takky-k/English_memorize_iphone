@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   addCustomVocabularyItem,
@@ -24,6 +24,7 @@ import type {
 } from "./types";
 
 const TEST_SIZE = 10;
+const AUTO_SPEECH_STORAGE_KEY = "english-memory-auto-speech";
 const initialSummary: TestSummary = {
   correct: 0,
   uncertain: 0,
@@ -56,6 +57,13 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnswerVisible, setIsAnswerVisible] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isAutoSpeechEnabled, setIsAutoSpeechEnabled] = useState(() => {
+    try {
+      return window.localStorage.getItem(AUTO_SPEECH_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
   const [answeredItems, setAnsweredItems] = useState<AnsweredItem[]>([]);
   const [newTerm, setNewTerm] = useState("");
   const [newMeaning, setNewMeaning] = useState("");
@@ -74,16 +82,20 @@ export default function App() {
   const [isScreeningMeaningVisible, setIsScreeningMeaningVisible] = useState(false);
   const [isScreeningSaving, setIsScreeningSaving] = useState(false);
   const [screeningUndo, setScreeningUndo] = useState<ScreeningUndo[]>([]);
+  const speechPlaybackIdRef = useRef(0);
+  const autoSpokenQuestionRef = useRef("");
 
   useEffect(() => {
     void initialize();
 
     return () => {
+      speechPlaybackIdRef.current += 1;
       window.speechSynthesis?.cancel();
     };
   }, []);
 
   const currentItem = sessionItems[currentIndex];
+  const currentTerm = currentItem?.term ?? "";
   const currentScreeningItem = screeningItems[screeningIndex];
   const screeningCompleted = Math.min(
     screeningBaseCompleted + screeningIndex,
@@ -103,6 +115,28 @@ export default function App() {
       : `0 / ${TEST_SIZE}`;
   const lifetimeAccuracyLabel =
     stats && stats.attempts > 0 ? `${Math.round((stats.correct / stats.attempts) * 100)}%` : "0%";
+
+  useEffect(() => {
+    if (!isAutoSpeechEnabled || mode !== "test" || isFinished || !currentTerm) {
+      return;
+    }
+
+    const questionKey = `${sessionId}:${currentIndex}:${currentItem?.id ?? currentTerm}`;
+    if (autoSpokenQuestionRef.current === questionKey) {
+      return;
+    }
+
+    autoSpokenQuestionRef.current = questionKey;
+    speakTerm(currentTerm);
+  }, [
+    currentIndex,
+    currentItem?.id,
+    currentTerm,
+    isAutoSpeechEnabled,
+    isFinished,
+    mode,
+    sessionId
+  ]);
 
   const accuracyLabel = useMemo(() => {
     if (summary.total === 0) {
@@ -145,8 +179,7 @@ export default function App() {
       return;
     }
 
-    window.speechSynthesis?.cancel();
-    setIsSpeaking(false);
+    stopSpeaking();
     setIsLoading(true);
     const nextItems = await createTestSession(database);
     setSessionItems(nextItems);
@@ -252,20 +285,61 @@ export default function App() {
     await refreshDashboard(db);
   }
 
-  function speakCurrentTerm() {
-    if (!currentItem || isSpeaking || !("speechSynthesis" in window)) {
+  function stopSpeaking() {
+    speechPlaybackIdRef.current += 1;
+    window.speechSynthesis?.cancel();
+    setIsSpeaking(false);
+  }
+
+  function speakTerm(term: string) {
+    if (
+      !term ||
+      !("speechSynthesis" in window) ||
+      !("SpeechSynthesisUtterance" in window)
+    ) {
       return;
     }
 
+    const playbackId = speechPlaybackIdRef.current + 1;
+    speechPlaybackIdRef.current = playbackId;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(currentItem.term);
+    const utterance = new SpeechSynthesisUtterance(term);
     utterance.lang = "en-US";
     utterance.rate = 0.86;
     utterance.pitch = 1;
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    const finishPlayback = () => {
+      if (speechPlaybackIdRef.current === playbackId) {
+        setIsSpeaking(false);
+      }
+    };
+    utterance.onend = finishPlayback;
+    utterance.onerror = finishPlayback;
     setIsSpeaking(true);
     window.speechSynthesis.speak(utterance);
+  }
+
+  function speakCurrentTerm() {
+    if (!currentTerm || isSpeaking) {
+      return;
+    }
+
+    speakTerm(currentTerm);
+  }
+
+  function toggleAutoSpeech() {
+    const nextValue = !isAutoSpeechEnabled;
+    autoSpokenQuestionRef.current = "";
+    setIsAutoSpeechEnabled(nextValue);
+
+    try {
+      window.localStorage.setItem(AUTO_SPEECH_STORAGE_KEY, String(nextValue));
+    } catch {
+      // The preference remains active for this tab if storage is unavailable.
+    }
+
+    if (!nextValue) {
+      stopSpeaking();
+    }
   }
 
   async function downloadBackup() {
@@ -536,10 +610,25 @@ export default function App() {
                 aria-label={`${currentItem?.term ?? ""} の音声を再生`}
                 className="icon-button"
                 disabled={!currentItem || isSpeaking}
+                title="今の語句を再生"
                 type="button"
                 onClick={speakCurrentTerm}
               >
                 {isSpeaking ? <PauseIcon /> : <SpeakerIcon />}
+              </button>
+              <button
+                aria-label={`自動読み上げを${isAutoSpeechEnabled ? "オフ" : "オン"}にする`}
+                aria-pressed={isAutoSpeechEnabled}
+                className="icon-button auto-speech-button"
+                disabled={!currentItem}
+                title={`自動読み上げ: ${isAutoSpeechEnabled ? "オン" : "オフ"}`}
+                type="button"
+                onClick={toggleAutoSpeech}
+              >
+                <SpeakerIcon />
+                <span aria-hidden="true" className="auto-speech-badge">
+                  A
+                </span>
               </button>
             </div>
           </div>
