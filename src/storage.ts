@@ -10,7 +10,7 @@ import type {
 
 const DB_NAME = "english-memory-pwa";
 const DB_VERSION = 1;
-const SEED_VERSION = "2026-07-23-daily-phrases";
+const SEED_VERSION = "2026-07-24-personalized";
 const TEST_SIZE = 10;
 
 type StoreName = "items" | "attempts" | "meta";

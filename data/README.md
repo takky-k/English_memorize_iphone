@@ -41,6 +41,9 @@ The app includes:
 - 50 hand-selected daily phrasal verbs in `src/data/phrasalVerbSeed.ts`
 - 110 additional PHaVE-ranked phrasal verbs in `src/data/phaveExpansionSeed.ts`
 - 272 daily spoken chunks and practical expressions in `src/data/dailyPhraseSeed.ts`
+- 40 targeted words and 80 collocations or conversation frames in
+  `src/data/personalizedExpansionSeed.ts`
+- 51 reviewed high-frequency meanings in `src/data/ngslMeaningOverrides.ts`
 
 References checked:
 
@@ -52,4 +55,4 @@ References checked:
 
 Definitions in the seed are short original paraphrases. Japanese meanings were manually
 reviewed for the everyday senses selected. Run `pnpm run audit:data` to check for blank
-fields and normalized duplicate terms.
+fields, normalized duplicate terms, and valid NGSL meaning overrides.

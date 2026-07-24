@@ -1,11 +1,19 @@
 import { dailyPhraseSeed } from "./dailyPhraseSeed";
+import { ngslMeaningOverrides } from "./ngslMeaningOverrides";
 import { ngslSeed } from "./ngslSeed";
+import { personalizedExpansionSeed } from "./personalizedExpansionSeed";
 import { phaveExpansionSeed } from "./phaveExpansionSeed";
 import { phrasalVerbSeed } from "./phrasalVerbSeed";
 
+const reviewedNgslSeed = ngslSeed.map((item) => ({
+  ...item,
+  ...ngslMeaningOverrides[item.term.toLocaleLowerCase("en-US")]
+}));
+
 export const vocabularySeed = [
-  ...ngslSeed,
+  ...reviewedNgslSeed,
   ...phrasalVerbSeed,
   ...phaveExpansionSeed,
-  ...dailyPhraseSeed
+  ...dailyPhraseSeed,
+  ...personalizedExpansionSeed
 ];
