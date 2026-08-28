@@ -395,6 +395,37 @@ button:disabled {
   line-height: 1.55;
 }
 
+.usage-example {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 12px;
+  width: 100%;
+}
+
+.usage-label {
+  color: #99f6e4;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.example-en {
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.example-ja {
+  color: #ccfbf1;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .answer-actions {
   display: grid;
   gap: 12px;

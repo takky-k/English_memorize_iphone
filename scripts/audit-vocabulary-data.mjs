@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const root = process.cwd();
+const { getUsageExample } = await import(
+  pathToFileURL(path.join(root, "src", "data", "usageExamples.ts")).href
+);
 const ngslPath = path.join(root, "src", "data", "ngslSeed.ts");
 const phrasePaths = [
   path.join(root, "src", "data", "phrasalVerbSeed.ts"),
@@ -21,7 +25,10 @@ const items = ngslItems.map((item) => ({
   term: item.term,
   meaningJa: item.meaningJa,
   definitionEn: item.definitionEn,
+  exampleEn: item.exampleEn,
+  exampleJa: item.exampleJa,
   itemType: "word",
+  pos: item.pos,
   sourceRank: item.sourceRank
 }));
 
@@ -41,7 +48,8 @@ for (const phrasePath of phrasePaths) {
       term: match[1],
       meaningJa: match[2],
       definitionEn: match[3],
-      itemType: "phrase"
+      itemType: "phrase",
+      pos: "phrase"
     });
   }
 }
@@ -118,6 +126,15 @@ for (const item of items) {
     errors.push(`Blank vocabulary field in ${item.file}: ${item.term || "(missing term)"}`);
   }
 
+  const usageExample = getUsageExample(item);
+  if (!usageExample.exampleEn.trim() || !usageExample.exampleJa.trim()) {
+    errors.push(`Blank usage example in ${item.file}: ${item.term || "(missing term)"}`);
+  }
+
+  if (!includesTerm(usageExample.exampleEn, item.term)) {
+    errors.push(`Usage example does not include term in ${item.file}: ${item.term}`);
+  }
+
   const key = normalizeTerm(item.term);
   grouped.set(key, [...(grouped.get(key) ?? []), item]);
 }
@@ -140,7 +157,8 @@ if (errors.length > 0) {
     `Vocabulary audit passed: ${items.length} unique items ` +
       `(${wordCount} words, ${phraseCount} phrases, ` +
       `${overrideRows.length} reviewed NGSL meanings, ` +
-      `${uniqueDifficultyRanks.size} personal review ranks).`
+      `${uniqueDifficultyRanks.size} personal review ranks, ` +
+      `${items.length} usage examples).`
   );
 }
 
@@ -155,7 +173,8 @@ function addTupleRows(source, file, itemType) {
       term: match[1],
       meaningJa: match[2],
       definitionEn: match[3],
-      itemType
+      itemType,
+      pos: itemType === "phrase" ? "phrase" : "personalized vocabulary"
     });
   }
 }
@@ -166,4 +185,8 @@ function normalizeTerm(term) {
     .toLocaleLowerCase("en-US")
     .replace(/[’‘]/g, "'")
     .replace(/\s+/g, " ");
+}
+
+function includesTerm(exampleEn, term) {
+  return normalizeTerm(exampleEn).includes(normalizeTerm(term));
 }

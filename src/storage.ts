@@ -1,4 +1,5 @@
 import { vocabularySeed } from "./data/vocabularySeed";
+import { getUsageExample } from "./data/usageExamples";
 import { isPersonalBaselineKnown } from "./data/personalDifficultyProfile";
 import type {
   AnswerResult,
@@ -11,7 +12,7 @@ import type {
 
 const DB_NAME = "english-memory-pwa";
 const DB_VERSION = 1;
-const SEED_VERSION = "2026-07-24-university-difficulty";
+const SEED_VERSION = "2026-08-28-usage-examples-v6";
 const KEEP_REMAINING_SCREENING_VERSION = "2026-07-24-keep-all-remaining";
 const TEST_SIZE = 10;
 const BASELINE_SCREENED_AT = Date.UTC(2026, 6, 24);
@@ -25,6 +26,8 @@ type CustomVocabularyInput = {
   term: string;
   meaningJa: string;
   definitionEn: string;
+  exampleEn?: string;
+  exampleJa?: string;
   itemType: VocabularyItemType;
 };
 
@@ -44,9 +47,12 @@ export async function getVocabularyStats(db: IDBDatabase): Promise<VocabularySta
       const incorrectAttempts = item.incorrectAttempts ?? 0;
       const isExcluded = Boolean(item.excludedAt);
       const isKnown = item.totalAttempts >= 3 && getDifficultyRate(item) <= 0.2;
+      const isAnsweredStudyable = !isExcluded && item.totalAttempts > 0;
 
       return {
         total: stats.total + 1,
+        studyable: stats.studyable + (isExcluded ? 0 : 1),
+        answeredStudyable: stats.answeredStudyable + (isAnsweredStudyable ? 1 : 0),
         words: stats.words + (item.itemType === "word" ? 1 : 0),
         phrases: stats.phrases + (item.itemType === "phrase" ? 1 : 0),
         known: stats.known + (isKnown ? 1 : 0),
@@ -59,6 +65,8 @@ export async function getVocabularyStats(db: IDBDatabase): Promise<VocabularySta
     },
     {
       total: 0,
+      studyable: 0,
+      answeredStudyable: 0,
       words: 0,
       phrases: 0,
       known: 0,
@@ -191,9 +199,14 @@ export async function addCustomVocabularyItem(db: IDBDatabase, input: CustomVoca
   );
 
   if (existing) {
+    const mergedMeaning = mergeMeanings([existing.meaningJa, input.meaningJa]);
+    const inputUsageExample = getInputUsageExample(input);
+    const usageExample = inputUsageExample ?? getUsageExample({ ...existing, meaningJa: mergedMeaning });
     const updatedItem: VocabularyItem = {
       ...existing,
-      meaningJa: mergeMeanings([existing.meaningJa, input.meaningJa])
+      meaningJa: mergedMeaning,
+      exampleEn: inputUsageExample?.exampleEn || existing.exampleEn?.trim() || usageExample.exampleEn,
+      exampleJa: inputUsageExample?.exampleJa || existing.exampleJa?.trim() || usageExample.exampleJa
     };
 
     await new Promise<void>((resolve, reject) => {
@@ -206,7 +219,7 @@ export async function addCustomVocabularyItem(db: IDBDatabase, input: CustomVoca
   }
 
   const now = Date.now();
-  const item: VocabularyItem = {
+  const baseItem: VocabularyItem = {
     id: `custom-${now}-${Math.random().toString(36).slice(2)}`,
     term: input.term.trim(),
     meaningJa: input.meaningJa.trim(),
@@ -223,6 +236,12 @@ export async function addCustomVocabularyItem(db: IDBDatabase, input: CustomVoca
     excludedAt: null,
     screenedAt: null
   };
+  const usageExample = getInputUsageExample(input) ?? getUsageExample(baseItem);
+  const item: VocabularyItem = {
+    ...baseItem,
+    exampleEn: usageExample.exampleEn,
+    exampleJa: usageExample.exampleJa
+  };
 
   await new Promise<void>((resolve, reject) => {
     const request = db.transaction("items", "readwrite").objectStore("items").add(item);
@@ -231,6 +250,13 @@ export async function addCustomVocabularyItem(db: IDBDatabase, input: CustomVoca
   });
 
   return { item, merged: false };
+}
+
+function getInputUsageExample(input: CustomVocabularyInput) {
+  const exampleEn = input.exampleEn?.trim() ?? "";
+  const exampleJa = input.exampleJa?.trim() ?? "";
+
+  return exampleEn && exampleJa ? { exampleEn, exampleJa } : null;
 }
 
 export async function getRecentAttempts(db: IDBDatabase, limit = 10) {
@@ -369,9 +395,13 @@ async function seedVocabulary(db: IDBDatabase) {
       latestExclusion === null &&
       latestScreening === null &&
       !hasLearningHistory;
+    const mergedMeaning = mergeMeanings(meaningSources);
+    const usageExample = getUsageExample({ ...base, meaningJa: mergedMeaning });
     const mergedItem: VocabularyItem = {
       ...base,
-      meaningJa: mergeMeanings(meaningSources),
+      meaningJa: mergedMeaning,
+      exampleEn: base.exampleEn?.trim() || usageExample.exampleEn,
+      exampleJa: base.exampleJa?.trim() || usageExample.exampleJa,
       totalAttempts: sum(storedItems.map((item) => item.totalAttempts)),
       correctAttempts: sum(storedItems.map((item) => item.correctAttempts)),
       uncertainAttempts: sum(storedItems.map((item) => item.uncertainAttempts ?? 0)),

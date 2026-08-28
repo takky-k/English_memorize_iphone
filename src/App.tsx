@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { getUsageExample } from "./data/usageExamples";
 import {
   addCustomVocabularyItem,
   createScreeningSession,
@@ -68,6 +69,8 @@ export default function App() {
   const [newTerm, setNewTerm] = useState("");
   const [newMeaning, setNewMeaning] = useState("");
   const [newDefinition, setNewDefinition] = useState("");
+  const [newExampleEn, setNewExampleEn] = useState("");
+  const [newExampleJa, setNewExampleJa] = useState("");
   const [newItemType, setNewItemType] = useState<VocabularyItemType>("word");
   const [addMessage, setAddMessage] = useState("");
   const [summary, setSummary] = useState<TestSummary>(initialSummary);
@@ -109,6 +112,8 @@ export default function App() {
     sessionTargetCount > 0 &&
     (summary.total >= sessionTargetCount || currentIndex >= sessionTargetCount);
   const scoreLabel = `${summary.correct} / ${summary.total}`;
+  const studyableLabel = `${stats?.studyable ?? 0}`;
+  const answeredStudyableLabel = `${stats?.answeredStudyable ?? 0} / ${stats?.studyable ?? 0}`;
   const progressLabel =
     sessionTargetCount > 0
       ? `${Math.min(currentIndex + 1, sessionTargetCount)} / ${sessionTargetCount}`
@@ -382,9 +387,16 @@ export default function App() {
 
     const term = newTerm.trim();
     const meaningJa = newMeaning.trim();
+    const exampleEn = newExampleEn.trim();
+    const exampleJa = newExampleJa.trim();
 
     if (!term || !meaningJa) {
       setAddMessage("英語と和訳は必須です。");
+      return;
+    }
+
+    if ((exampleEn && !exampleJa) || (!exampleEn && exampleJa)) {
+      setAddMessage("例文と例文の和訳はセットで入力してください。");
       return;
     }
 
@@ -392,11 +404,15 @@ export default function App() {
       term,
       meaningJa,
       definitionEn: newDefinition,
+      exampleEn,
+      exampleJa,
       itemType: newItemType
     });
     setNewTerm("");
     setNewMeaning("");
     setNewDefinition("");
+    setNewExampleEn("");
+    setNewExampleJa("");
     setNewItemType("word");
     setAddMessage(
       merged
@@ -499,10 +515,7 @@ export default function App() {
                 {currentScreeningItem.term}
               </span>
               {isScreeningMeaningVisible ? (
-                <span className="answer-block">
-                  <span className="meaning">{currentScreeningItem.meaningJa}</span>
-                  <span className="definition">{currentScreeningItem.definitionEn}</span>
-                </span>
+                <AnswerDetails item={currentScreeningItem} />
               ) : null}
             </button>
 
@@ -558,6 +571,8 @@ export default function App() {
       <section className="stats-grid" aria-label="学習状況">
         <Stat label="累計回答" value={`${stats?.attempts ?? 0}`} />
         <Stat label="累計正解率" value={lifetimeAccuracyLabel} />
+        <Stat label="出題対象" value={studyableLabel} />
+        <Stat label="解いた語句" value={answeredStudyableLabel} />
         <Stat label="登録語句" value={`${stats?.total ?? 0}`} />
         <Stat label="覚えた判定" value={`${stats?.known ?? 0}`} />
         <Stat label="テスト除外" value={`${stats?.excluded ?? 0}`} />
@@ -644,10 +659,7 @@ export default function App() {
               {currentItem?.term}
             </span>
             {isAnswerVisible ? (
-              <span className="answer-block">
-                <span className="meaning">{currentItem?.meaningJa}</span>
-                <span className="definition">{currentItem?.definitionEn}</span>
-              </span>
+              currentItem ? <AnswerDetails item={currentItem} /> : null
             ) : null}
           </button>
 
@@ -749,6 +761,24 @@ export default function App() {
               onChange={(event) => setNewDefinition(event.target.value)}
             />
           </label>
+          <label>
+            <span>例文（任意）</span>
+            <textarea
+              placeholder="例: I will take over the project next week."
+              rows={2}
+              value={newExampleEn}
+              onChange={(event) => setNewExampleEn(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>例文の和訳（任意）</span>
+            <textarea
+              placeholder="例: 来週、私がそのプロジェクトを引き継ぎます。"
+              rows={2}
+              value={newExampleJa}
+              onChange={(event) => setNewExampleJa(event.target.value)}
+            />
+          </label>
           <div className="segmented-control" role="group" aria-label="語句の種類">
             <button
               className={newItemType === "word" ? "selected" : ""}
@@ -796,6 +826,22 @@ export default function App() {
         )}
       </section>
     </main>
+  );
+}
+
+function AnswerDetails({ item }: { item: VocabularyItem }) {
+  const usage = getUsageExample(item);
+
+  return (
+    <span className="answer-block">
+      <span className="meaning">{item.meaningJa}</span>
+      <span className="definition">{item.definitionEn}</span>
+      <span className="usage-example">
+        <span className="usage-label">例文</span>
+        <span className="example-en">{usage.exampleEn}</span>
+        <span className="example-ja">{usage.exampleJa}</span>
+      </span>
+    </span>
   );
 }
 

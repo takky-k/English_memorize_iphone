@@ -5,6 +5,8 @@ export type VocabularySeedItem = {
   term: string;
   meaningJa: string;
   definitionEn: string;
+  exampleEn?: string;
+  exampleJa?: string;
   pos: string;
   itemType: VocabularyItemType;
   source: string;
@@ -44,6 +46,8 @@ export type TestSummary = {
 
 export type VocabularyStats = {
   total: number;
+  studyable: number;
+  answeredStudyable: number;
   words: number;
   phrases: number;
   known: number;
