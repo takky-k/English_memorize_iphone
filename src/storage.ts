@@ -12,7 +12,7 @@ import type {
 
 const DB_NAME = "english-memory-pwa";
 const DB_VERSION = 1;
-const SEED_VERSION = "2026-08-28-usage-examples-v6";
+const SEED_VERSION = "2026-08-31-daily-usage-examples-v1";
 const KEEP_REMAINING_SCREENING_VERSION = "2026-07-24-keep-all-remaining";
 const TEST_SIZE = 10;
 const BASELINE_SCREENED_AT = Date.UTC(2026, 6, 24);

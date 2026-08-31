@@ -15,6 +15,37 @@ const phrasePaths = [
 const personalizedPath = path.join(root, "src", "data", "personalizedExpansionSeed.ts");
 const overridePath = path.join(root, "src", "data", "ngslMeaningOverrides.ts");
 const difficultyPath = path.join(root, "src", "data", "personalDifficultyProfile.ts");
+const weakExamplePatterns = [
+  /in today's lesson/i,
+  /^i saw "/i,
+  /^i used "/i,
+  /before the meeting starts/i,
+  /we should check the details/i,
+  /^she explained the answer/i,
+  /^this situation seems/i,
+  /was important in the discussion/i,
+  /^it is useful to know how to/i,
+  /naturally in the sentence/i,
+  /the train arrived \w+, so/i,
+  /easier to understand after a quick example/i,
+  /on the table when i got home/i,
+  /to my list for tomorrow/i,
+  /your jacket before we leave/i,
+  /the room on sunday/i,
+  /my neighbor this weekend/i,
+  /we can try again tomorrow/i,
+  /smaller bag is easier/i,
+  /less money on coffee/i,
+  /before the rain gets heavy/i,
+  /we can \w+ dinner together/i,
+  /the room was \w+ after we opened the window/i,
+  /the new schedule was \w+, so/i,
+  /i plan to \w+ there after lunch/i,
+  /we should \w+ the small problem/i,
+  /please explain the \w+ in plain language/i,
+  /she answered \w+ when/i,
+  /するます|くるます|なるます|戻るます|起きるます|外出するます|引き返すます/
+];
 
 const ngslSource = fs.readFileSync(ngslPath, "utf8");
 const ngslItems = JSON.parse(
@@ -135,6 +166,11 @@ for (const item of items) {
     errors.push(`Usage example does not include term in ${item.file}: ${item.term}`);
   }
 
+  const usageExampleText = `${usageExample.exampleEn}\n${usageExample.exampleJa}`;
+  if (weakExamplePatterns.some((pattern) => pattern.test(usageExampleText))) {
+    errors.push(`Weak or template-like usage example in ${item.file}: ${item.term}`);
+  }
+
   const key = normalizeTerm(item.term);
   grouped.set(key, [...(grouped.get(key) ?? []), item]);
 }
@@ -188,5 +224,16 @@ function normalizeTerm(term) {
 }
 
 function includesTerm(exampleEn, term) {
-  return normalizeTerm(exampleEn).includes(normalizeTerm(term));
+  const example = normalizeTerm(exampleEn);
+  const normalizedTerm = normalizeTerm(term);
+
+  if (example.includes(normalizedTerm)) {
+    return true;
+  }
+
+  if (normalizedTerm.startsWith("be ")) {
+    return example.includes(normalizedTerm.slice(3));
+  }
+
+  return false;
 }
